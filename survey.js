@@ -35,22 +35,30 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function canProceed() {
-    const stepEl = steps[currentStep];
-    if (!stepEl.hasAttribute("data-required")) return true;
+  const stepEl = steps[currentStep];
+  const errorBox = stepEl.querySelector(".multistep-form-error");
 
-    const hasSelection = stepEl.querySelector(
-      'input[type="radio"]:checked, input[type="checkbox"]:checked'
-    );
+  const hasCheckedInput = stepEl.querySelector(
+    'input[type="radio"]:checked, input[type="checkbox"]:checked'
+  );
 
-    const errorBox = stepEl.querySelector(".multistep-form-error");
+  const hasFilledInput = Array.from(
+    stepEl.querySelectorAll(
+      'input[type="text"], input[type="email"], input[type="tel"], textarea, select'
+    )
+  ).some(el => el.value.trim() !== "");
 
-    if (!hasSelection) {
-      if (errorBox) errorBox.style.display = "block";
-      return false;
-    }
+  const isValid = hasCheckedInput || hasFilledInput;
 
-    return true;
+  if (!isValid) {
+    if (errorBox) errorBox.style.display = "flex";
+    return false;
   }
+
+  if (errorBox) errorBox.style.display = "none";
+  return true;
+}
+
 
   function goNext() {
     if (!canProceed()) return;
@@ -79,23 +87,26 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Auto-advance + hide error on selection
   steps.forEach((step, stepIndex) => {
-    const inputs = step.querySelectorAll(
-      'input[type="radio"], input[type="checkbox"]'
-    );
-    const errorBox = step.querySelector(".multistep-form-error");
+  const inputs = step.querySelectorAll("input, textarea, select");
+  const errorBox = step.querySelector(".multistep-form-error");
 
-    inputs.forEach((input) => {
-      input.addEventListener("change", () => {
-        if (errorBox) errorBox.style.display = "none";
+  inputs.forEach(input => {
+    input.addEventListener("change", () => {
+      if (errorBox) errorBox.style.display = "none";
 
-        if (stepIndex === currentStep) {
-          setTimeout(() => {
-            goNext();
-          }, 150);
-        }
-      });
+      if (stepIndex === currentStep) {
+        setTimeout(() => {
+          if (canProceed()) goNext();
+        }, 150);
+      }
+    });
+
+    input.addEventListener("input", () => {
+      if (errorBox) errorBox.style.display = "none";
     });
   });
+});
+
 
   // Init
   updateUI();
