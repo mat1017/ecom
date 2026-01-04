@@ -149,6 +149,31 @@ function setupConditionalRadio({
   const showEls = document.querySelectorAll(`[${showAttr}]`);
   const hideEls = document.querySelectorAll(`[${hideAttr}]`);
 
+  function clearInputs(container) {
+    if (!container) return;
+
+    // Clear radios & checkboxes
+    container
+      .querySelectorAll('input[type="radio"], input[type="checkbox"]')
+      .forEach(input => (input.checked = false));
+
+    // Clear text-based inputs
+    container
+      .querySelectorAll(
+        'input[type="text"], input[type="email"], input[type="tel"], textarea'
+      )
+      .forEach(input => (input.value = ""));
+
+    // Reset selects
+    container
+      .querySelectorAll("select")
+      .forEach(select => (select.selectedIndex = 0));
+
+    // Hide step-specific error
+    const errorBox = container.querySelector(".multistep-form-error");
+    if (errorBox) errorBox.style.display = "none";
+  }
+
   function applyCondition(value) {
     const shouldTrigger = triggerValues.includes(value);
 
@@ -158,6 +183,10 @@ function setupConditionalRadio({
 
     hideEls.forEach(el => {
       el.style.display = shouldTrigger ? "none" : "";
+
+      if (shouldTrigger) {
+        clearInputs(el);
+      }
     });
   }
 
@@ -171,6 +200,7 @@ function setupConditionalRadio({
     }
   });
 }
+
 
 document.addEventListener("DOMContentLoaded", function () {
   setupConditionalRadio({
