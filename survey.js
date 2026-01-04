@@ -146,46 +146,56 @@ function setupConditionalRadio({
   hideAttr
 }) {
   const radios = document.querySelectorAll(`input[name="${radioName}"]`);
-  const showEls = document.querySelectorAll(`[${showAttr}]`);
-  const hideEls = document.querySelectorAll(`[${hideAttr}]`);
+  const showContainers = document.querySelectorAll(`[${showAttr}]`);
+  const hideContainers = document.querySelectorAll(`[${hideAttr}]`);
 
-  function clearInputs(container) {
+  function clearAllFields(container) {
     if (!container) return;
 
-    // Clear radios & checkboxes
+    // Radios & Checkboxes
     container
       .querySelectorAll('input[type="radio"], input[type="checkbox"]')
-      .forEach(input => (input.checked = false));
+      .forEach(input => {
+        input.checked = false;
+      });
 
-    // Clear text-based inputs
+    // Text inputs
     container
       .querySelectorAll(
         'input[type="text"], input[type="email"], input[type="tel"], textarea'
       )
-      .forEach(input => (input.value = ""));
+      .forEach(input => {
+        input.value = "";
+      });
 
-    // Reset selects
+    // Selects
     container
       .querySelectorAll("select")
-      .forEach(select => (select.selectedIndex = 0));
+      .forEach(select => {
+        select.selectedIndex = 0;
+      });
 
-    // Hide step-specific error
-    const errorBox = container.querySelector(".multistep-form-error");
-    if (errorBox) errorBox.style.display = "none";
+    // Hide any error messages inside
+    container
+      .querySelectorAll(".multistep-form-error")
+      .forEach(error => {
+        error.style.display = "none";
+      });
   }
 
   function applyCondition(value) {
     const shouldTrigger = triggerValues.includes(value);
 
-    showEls.forEach(el => {
-      el.style.display = shouldTrigger ? "" : "none";
+    showContainers.forEach(container => {
+      container.style.display = shouldTrigger ? "" : "none";
     });
 
-    hideEls.forEach(el => {
-      el.style.display = shouldTrigger ? "none" : "";
+    hideContainers.forEach(container => {
+      container.style.display = shouldTrigger ? "none" : "";
 
+      // 🔑 CLEAR EVERYTHING INSIDE when hidden
       if (shouldTrigger) {
-        clearInputs(el);
+        clearAllFields(container);
       }
     });
   }
@@ -200,6 +210,7 @@ function setupConditionalRadio({
     }
   });
 }
+
 
 
 document.addEventListener("DOMContentLoaded", function () {
