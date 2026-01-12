@@ -5,7 +5,7 @@ $(document).ready(function () {
 
   let countryCodePromise = null;
 
-  function fetchCountryCode() {
+  function fetchCountryData() {
     if (countryCodePromise) return countryCodePromise;
 
     const cacheKey = "userCountryInfo";
@@ -37,12 +37,13 @@ $(document).ready(function () {
         resolve(data.code);
       };
 
-      if (typeof geoip2 !== "undefined" && typeof geoip2.country === "function") {
-        geoip2.country(
+      // MaxMind GeoIP2 City API (correct source for city + region)
+      if (typeof geoip2 !== "undefined" && typeof geoip2.city === "function") {
+        geoip2.city(
           (response) => {
             const data = {
               code: response?.country?.iso_code?.toLowerCase?.() || fallbackCountry,
-              name: response?.country?.names?.en || "",
+              country: response?.country?.names?.en || "",
               city: response?.city?.names?.en || "",
               region: response?.subdivisions?.[0]?.names?.en || "",
               ip: response?.traits?.ip_address || "",
@@ -65,6 +66,7 @@ $(document).ready(function () {
   }
 
   function populateHiddenFields(data) {
+    // UTC datetime
     const utcDateTime = new Date()
       .toISOString()
       .replace("T", " ")
@@ -76,26 +78,32 @@ $(document).ready(function () {
       $(".ip-address").val(data.ip);
     }
 
+    // Country, city, region (class-based, NOT name-based)
+    if (data?.country) {
+      $(".user_country_name").val(data.country);
+    }
+
+    if (data?.city) {
+      $(".city").val(data.city);
+    }
+
+    if (data?.region) {
+      $(".region").val(data.region);
+    }
+
+    // Combined geolocation string
     const geoParts = [];
     if (data.city) geoParts.push(data.city);
     if (data.region) geoParts.push(data.region);
-    if (data.name) geoParts.push(data.name);
+    if (data.country) geoParts.push(data.country);
 
     if (geoParts.length) {
       $(".ip-geolocation").val(geoParts.join(", "));
     }
-
-    if ($('input[name="user_country_name"]').length && data.name) {
-      $('input[name="user_country_name"]').val(data.name);
-    }
-
-    if ($('input[name="ip_address"]').length && data.ip) {
-      $('input[name="ip_address"]').val(data.ip);
-    }
   }
 
   const phoneInputs = $('input[ms-code-phone-number]');
-  fetchCountryCode(); // trigger early, cached after first load
+  fetchCountryData(); // trigger early, cached
 
   const initializedForms = new Set();
 
@@ -110,7 +118,7 @@ $(document).ready(function () {
     });
 
     iti.promise.then(() => {
-      fetchCountryCode().then((countryCode) => {
+      fetchCountryData().then((countryCode) => {
         if (countryCode) iti.setCountry(countryCode);
       });
 
@@ -145,7 +153,7 @@ $(document).ready(function () {
       if (!initializedForms.has(form[0])) {
         initializedForms.add(form[0]);
 
-        form.submit(function () {
+        form.on("submit", function () {
           const fullNumber = iti.getNumber(
             intlTelInputUtils.numberFormat.INTERNATIONAL
           );
