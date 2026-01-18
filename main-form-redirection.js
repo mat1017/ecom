@@ -26,4 +26,4 @@ function wfRedirect(id, url) {
   });
 }
 
-wfRedirect("Main-Form", "/survey");
+wfRedirect("Main-Form", "/apply-to-work-with-ecom-capital");
