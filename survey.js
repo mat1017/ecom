@@ -229,7 +229,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const params = new URLSearchParams(window.location.search);
 
   ["name", "email", "phone"].forEach(key => {
-    const input = document.querySelector(`input[name="${key}"]`);
+    const input = document.querySelector(`[data-field="${key}"]`);
     const value = params.get(key);
     if (input && value) input.value = value;
   });
