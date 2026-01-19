@@ -154,11 +154,15 @@ $(document).ready(function () {
         initializedForms.add(form[0]);
 
         form.on("submit", function () {
-          const fullNumber = iti.getNumber(
-            intlTelInputUtils.numberFormat.INTERNATIONAL
-          );
-          input.value = fullNumber;
-        });
+  if (typeof intlTelInputUtils === "undefined") return;
+
+  const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.INTERNATIONAL);
+
+  input.value = fullNumber;
+
+  const fullInput = $(this).find(".full-phone-input");
+  if (fullInput.length) fullInput.val(fullNumber);
+});
       }
     });
   });
