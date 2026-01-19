@@ -4,13 +4,14 @@
   const LEAD_KEY = "ecom_lead_identity";
   const RAW_KEY = "ecom_raw_query";
 
-  const DEFAULT_BASE_URL = "https://calendly.com/ecomcapital/strategy-call-c1";
-
-  const HEADLINE_SELECTOR = '[data-call="headline"], [data-call-headline], .call-booking-headline';
-  const EMBED_SELECTOR = "#calendly-embed, [data-calendly-embed], .calendly-embed, [data=\"calendly-embed\"]";
-
+  const EMBED_ID = "calendly-embed";
   const FALLBACK_ID = "calendly-fallback";
   const FALLBACK_LINK_ID = "calendly-fallback-link";
+
+  const DEFAULT_BASE_URL = "https://calendly.com/ecomcapital/strategy-call-c1";
+  const WIDGET_SRC = "https://assets.calendly.com/assets/external/widget.js";
+
+  const HEADLINE_SELECTORS = ['[data-call="headline"]', "[data-call-headline]", ".call-booking-headline"];
 
   function clean(v) {
     if (v === undefined || v === null) return "";
@@ -57,23 +58,15 @@
     const email = clean(cached.data.email);
     const phone = clean(cached.data.phone);
 
+    if (!name && !email && !phone) return null;
     return { name, email, phone };
   }
 
   function safeGetRawQueryObject() {
     const cached = safeGetLocalJson(RAW_KEY);
-    if (!cached || typeof cached !== "object") return {};
-    if (!cached.data || typeof cached.data !== "object") return {};
-    return cached.data || {};
-  }
-
-  function pickUtm(raw) {
-    const out = {};
-    ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"].forEach((k) => {
-      const v = raw && raw[k] ? clean(raw[k]) : "";
-      if (v) out[k] = v;
-    });
-    return out;
+    if (!cached || typeof cached !== "object") return null;
+    if (!cached.data || typeof cached.data !== "object") return null;
+    return cached.data;
   }
 
   function splitName(full) {
@@ -99,25 +92,22 @@
     })();
   }
 
-  function setHeadline(text) {
-    const el = document.querySelector(HEADLINE_SELECTOR);
-    if (!el) return;
-    el.textContent = clean(text);
-  }
-
-  function showFallback(fallbackUrl, embedEl) {
+  function showFallback(fallbackUrl) {
+    const embed = document.getElementById(EMBED_ID);
     const fbWrap = document.getElementById(FALLBACK_ID);
     const fbLink = document.getElementById(FALLBACK_LINK_ID);
 
     if (fbLink) fbLink.href = fallbackUrl;
 
-    if (embedEl) embedEl.style.display = "none";
+    if (embed) embed.style.display = "none";
     if (fbWrap) fbWrap.style.display = "block";
   }
 
-  function hideFallback(embedEl) {
+  function hideFallback() {
+    const embed = document.getElementById(EMBED_ID);
     const fbWrap = document.getElementById(FALLBACK_ID);
-    if (embedEl) embedEl.style.display = "block";
+
+    if (embed) embed.style.display = "block";
     if (fbWrap) fbWrap.style.display = "none";
   }
 
@@ -136,6 +126,19 @@
     return config?.routing?.tier_1 || null;
   }
 
+  function setHeadline(text) {
+    const v = clean(text);
+    if (!v) return;
+
+    for (let i = 0; i < HEADLINE_SELECTORS.length; i++) {
+      const el = document.querySelector(HEADLINE_SELECTORS[i]);
+      if (el) {
+        el.textContent = v;
+        return;
+      }
+    }
+  }
+
   function buildCalendlyDisplayUrl(baseUrl) {
     const displayParams = new URLSearchParams({
       hide_event_type_details: "1",
@@ -147,40 +150,55 @@
     return u + (u.includes("?") ? "&" : "?") + displayParams.toString();
   }
 
-  function buildFallbackUrl(baseUrl, firstName, lastName, email, phoneDigits) {
-    const u = clean(baseUrl) || DEFAULT_BASE_URL;
+  function pickUtm(raw) {
+    const out = {};
+    ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"].forEach((k) => {
+      const v = raw && raw[k] ? clean(raw[k]) : "";
+      if (v) out[k] = v;
+    });
+    return out;
+  }
 
+  function buildFallbackUrl(baseUrl, identity, utm) {
+    const u = clean(baseUrl) || DEFAULT_BASE_URL;
     const p = new URLSearchParams({
       hide_event_type_details: "1",
       hide_gdpr_banner: "1",
     });
 
-    const nm = clean((clean(firstName) + " " + clean(lastName)).trim());
+    const nm = clean((identity.firstName + " " + identity.lastName).trim());
     if (nm) p.set("name", nm);
-    if (clean(email)) p.set("email", clean(email));
-    if (clean(phoneDigits)) p.set("a1", clean(phoneDigits));
+    if (clean(identity.email)) p.set("email", clean(identity.email));
+    if (clean(identity.phoneDigits)) p.set("a1", clean(identity.phoneDigits));
+
+    if (utm && Object.keys(utm).length) {
+      if (utm.utm_source) p.set("utm_source", utm.utm_source);
+      if (utm.utm_medium) p.set("utm_medium", utm.utm_medium);
+      if (utm.utm_campaign) p.set("utm_campaign", utm.utm_campaign);
+      if (utm.utm_term) p.set("utm_term", utm.utm_term);
+      if (utm.utm_content) p.set("utm_content", utm.utm_content);
+    }
 
     return u + (u.includes("?") ? "&" : "?") + p.toString();
   }
 
-  function getIdentity() {
+  function getPrefillIdentity() {
     const params = qs();
+
     const lead = safeGetLead();
     const raw = safeGetRawQueryObject() || {};
 
     const urlName = clean(params.get("name"));
     const urlEmail = clean(params.get("email"));
+    const urlPhone = clean(params.get("a1")) || clean(params.get("phone"));
 
     const name = urlName || clean(raw.name) || (lead ? clean(lead.name) : "");
     const email = urlEmail || clean(raw.email) || (lead ? clean(lead.email) : "");
-
-    const phoneFromUrl = clean(params.get("a1")) || clean(params.get("phone"));
-    const phone = phoneFromUrl || clean(raw.phone) || (lead ? clean(lead.phone) : "");
+    const phone = urlPhone || clean(raw.phone) || (lead ? clean(lead.phone) : "");
 
     const { firstName, lastName } = splitName(name);
 
     return {
-      name: clean(name),
       firstName,
       lastName,
       email: clean(email),
@@ -188,7 +206,49 @@
     };
   }
 
-  function initCalendlyInline(calendlyUrl, embedEl, identity, utm, onLoaded) {
+  function ensureCalendlyWidgetLoaded(onLoaded) {
+    if (window.Calendly && typeof window.Calendly.initInlineWidget === "function") {
+      onLoaded(true);
+      return;
+    }
+
+    const existing = document.querySelector('script[src="' + WIDGET_SRC + '"]');
+    if (existing) {
+      waitFor(
+        function () {
+          return window.Calendly && typeof window.Calendly.initInlineWidget === "function";
+        },
+        6000,
+        25,
+        function () {
+          onLoaded(true);
+        }
+      );
+      return;
+    }
+
+    const s = document.createElement("script");
+    s.src = WIDGET_SRC;
+    s.async = true;
+    s.onload = function () {
+      waitFor(
+        function () {
+          return window.Calendly && typeof window.Calendly.initInlineWidget === "function";
+        },
+        6000,
+        25,
+        function () {
+          onLoaded(true);
+        }
+      );
+    };
+    s.onerror = function () {
+      onLoaded(false);
+    };
+    document.head.appendChild(s);
+  }
+
+  function initCalendlyInline(calendlyUrl, identity, utm, container, onLoaded) {
     const fallbackTimer = setTimeout(function () {
       onLoaded(false);
     }, 4500);
@@ -210,44 +270,43 @@
       false
     );
 
-    waitFor(
-      function () {
-        return window.Calendly && typeof window.Calendly.initInlineWidget === "function";
-      },
-      6000,
-      25,
-      function () {
-        const opts = {
-          url: calendlyUrl,
-          parentElement: embedEl,
-          prefill: {
-            firstName: identity.firstName,
-            lastName: identity.lastName,
-            email: identity.email,
-            customAnswers: { a1: identity.phoneDigits },
-          },
-        };
+    ensureCalendlyWidgetLoaded(function (ok) {
+      if (!ok) return onLoaded(false);
 
-        if (utm && Object.keys(utm).length) {
-          opts.utm = {};
-          if (utm.utm_source) opts.utm.utmSource = utm.utm_source;
-          if (utm.utm_medium) opts.utm.utmMedium = utm.utm_medium;
-          if (utm.utm_campaign) opts.utm.utmCampaign = utm.utm_campaign;
-          if (utm.utm_term) opts.utm.utmTerm = utm.utm_term;
-          if (utm.utm_content) opts.utm.utmContent = utm.utm_content;
-        }
+      const opts = {
+        url: calendlyUrl,
+        parentElement: container,
+        prefill: {
+          firstName: identity.firstName,
+          lastName: identity.lastName,
+          email: identity.email,
+          customAnswers: { a1: identity.phoneDigits },
+        },
+      };
 
-        window.Calendly.initInlineWidget(opts);
+      if (utm && Object.keys(utm).length) {
+        opts.utm = {};
+        if (utm.utm_source) opts.utm.utmSource = utm.utm_source;
+        if (utm.utm_medium) opts.utm.utmMedium = utm.utm_medium;
+        if (utm.utm_campaign) opts.utm.utmCampaign = utm.utm_campaign;
+        if (utm.utm_term) opts.utm.utmTerm = utm.utm_term;
+        if (utm.utm_content) opts.utm.utmContent = utm.utm_content;
       }
-    );
+
+      try {
+        window.Calendly.initInlineWidget(opts);
+      } catch {
+        return onLoaded(false);
+      }
+    });
   }
 
   onReady(async function () {
-    const embedEl = document.querySelector(EMBED_SELECTOR);
-    if (!embedEl) return;
+    const container = document.getElementById(EMBED_ID);
+    if (!container) return;
 
-    if (embedEl.getAttribute("data-calendly-mounted") === "1") return;
-    embedEl.setAttribute("data-calendly-mounted", "1");
+    if (container.getAttribute("data-calendly-mounted") === "1") return;
+    container.setAttribute("data-calendly-mounted", "1");
 
     const params = qs();
     const tierParam = clean(params.get("tier"));
@@ -266,30 +325,25 @@
       }
 
       baseUrl = clean(routing?.url) || baseUrl;
-      headline = clean(routing?.headline);
+      headline = clean(routing?.headline) || "";
+      if (headline) setHeadline(headline);
     } catch {}
 
-    setHeadline(headline);
-
-    const raw = safeGetRawQueryObject();
+    const raw = safeGetRawQueryObject() || {};
     const utm = pickUtm(raw);
-
-    const identity = getIdentity();
+    const identity = getPrefillIdentity();
 
     const calendlyUrl = buildCalendlyDisplayUrl(baseUrl);
-    const fallbackUrl = buildFallbackUrl(baseUrl, identity.firstName, identity.lastName, identity.email, identity.phoneDigits);
+    const fallbackUrl = buildFallbackUrl(baseUrl, identity, utm);
 
     if (forceFallback) {
-      showFallback(fallbackUrl, embedEl);
+      showFallback(fallbackUrl);
       return;
     }
 
-    hideFallback(embedEl);
-    embedEl.innerHTML = "";
-
-    initCalendlyInline(calendlyUrl, embedEl, identity, utm, function (loaded) {
-      if (loaded) hideFallback(embedEl);
-      else showFallback(fallbackUrl, embedEl);
+    initCalendlyInline(calendlyUrl, identity, utm, container, function (loaded) {
+      if (loaded) hideFallback();
+      else showFallback(fallbackUrl);
     });
   });
 })();
