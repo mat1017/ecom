@@ -7,6 +7,35 @@
     } catch {}
   }
 
+  function buildParamsObject() {
+    const params = new URLSearchParams(window.location.search);
+    const obj = {};
+    params.forEach((value, key) => {
+      if (obj[key] === undefined) obj[key] = value;
+      else if (Array.isArray(obj[key])) obj[key].push(value);
+      else obj[key] = [obj[key], value];
+    });
+    return obj;
+  }
+
+  function deleteKeys(obj, keys) {
+    keys.forEach((k) => {
+      if (obj[k] !== undefined) delete obj[k];
+    });
+    return obj;
+  }
+
+  function objectToSearchParams(obj) {
+    const sp = new URLSearchParams();
+    Object.keys(obj || {}).forEach((k) => {
+      const v = obj[k];
+      if (v === undefined || v === null || v === "") return;
+      if (Array.isArray(v)) v.forEach((x) => sp.append(k, x));
+      else sp.set(k, v);
+    });
+    return sp;
+  }
+
   function wfRedirect(id, url) {
     const f = document.getElementById(id);
     if (!f) return;
@@ -14,9 +43,10 @@
     f.addEventListener("submit", (e) => {
       e.preventDefault();
 
-      const p = {};
       const lead = {};
       let fname = "", lname = "";
+
+      const carry = deleteKeys(buildParamsObject(), ["name", "email", "phone", "fname", "lname"]);
 
       f.querySelectorAll("[data-param]").forEach((el) => {
         const k = el.dataset.param;
@@ -27,7 +57,7 @@
         else if (k === "lname") lname = v;
         else if (k === "email") lead.email = v;
         else if (k === "phone") lead.phone = v;
-        else p[k] = v;
+        else carry[k] = v;
       });
 
       const fullPhone = f.querySelector(".full-phone-input")?.value?.trim?.();
@@ -38,7 +68,7 @@
 
       setLeadIdentity(lead);
 
-      const qs = new URLSearchParams(p).toString();
+      const qs = objectToSearchParams(carry).toString();
       location.href = url + (qs ? "?" + qs : "");
     });
   }
