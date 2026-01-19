@@ -1,5 +1,5 @@
 {
-  "version": "v1.0.0",
+  "version": "v1.1.0",
   "updated_at": "2026-01-19",
   "ttl_ms": 86400000,
   "outputs": {
@@ -50,76 +50,69 @@
     {
       "id": "q1_current_situation",
       "enrichment_only": false,
-      "webflow_label": "So we can see where you’re starting from, what is your current situation?",
       "answers": {
-        "I run my own business.": 20,
-        "I have a job.": 8,
-        "Something else.": 5,
-        "I am currently unemployed.": -12
+        "run_business": 20,
+        "have_job": 8,
+        "something_else": 5,
+        "unemployed": -12
       }
     },
     {
       "id": "q2a_prior_experience",
       "enrichment_only": false,
-      "webflow_label": "Have you ever run a business before?",
       "answers": {
-        "No, this would be my first.": 2,
-        "No, but I’ve held a senior or leadership role.": 7,
-        "Yes, but not eCommerce.": 15,
-        "Yes, I’ve run an eCommerce business before.": 20
+        "first_time": 2,
+        "senior_role": 7,
+        "business_not_ecom": 15,
+        "ecom_before": 20
       }
     },
     {
       "id": "q2b_business_duration",
       "enrichment_only": true,
-      "webflow_label": "How long have you been running your own business?",
       "answers": {}
     },
     {
       "id": "q3_support_needed",
       "enrichment_only": false,
-      "webflow_label": "What kind of support are you looking for?",
       "answers": {
-        "I want clear step-by-step guidance.": 15,
-        "I need help staying accountable.": 7,
-        "I am looking for a done-for-you solution.": 5,
-        "I’m just curious about what’s involved.": -5
+        "step_by_step": 15,
+        "accountability": 7,
+        "done_for_you": 5,
+        "just_curious": -5
       }
     },
     {
       "id": "q4_funding_readiness",
       "enrichment_only": false,
-      "webflow_label": "When thinking about funding your business growth, which of the following best describes you?",
       "answers": {
-        "I’ve reserved funds for business or personal growth.": 12,
-        "I could access funds quickly if needed.": 12,
-        "I’d need a flexible payment option to start.": 5,
-        "I want to plan first before committing financially.": 8,
-        "I’m not currently in a position to invest.": 0
+        "funds_set_aside": 12,
+        "access_quickly": 12,
+        "flex_payment": 5,
+        "plan_first": 8,
+        "cant_invest": 0
       }
     },
     {
       "id": "q5_investment_comfort",
       "enrichment_only": false,
-      "webflow_label": "If you found the right strategy and mentorship, what level of investment would feel comfortable for you to start with?",
       "answers": {
-        "0-5K": -7,
-        "5-10K": 5,
-        "10-20K": 12,
-        "20-30K": 15,
-        "Over 30K": 20
+        "0_5k": -7,
+        "5_10k": 5,
+        "10_20k": 12,
+        "20_30k": 15,
+        "over_30k": 20
       }
     },
     {
       "id": "q6_start_timeline",
       "enrichment_only": false,
-      "webflow_label": "How soon do you plan on getting started?",
       "answers": {
-        "I am still in the research phase.": -10,
-        "Immediately": 15,
-        "In 1-2 Weeks": 8,
-        "In 1 Month": 4,
-        "In 3+ Months": 2
+        "researching": -10,
+        "immediately": 15,
+        "1_2_weeks": 8,
+        "1_month": 4,
+        "3_plus_months": 2
       }
     }
   ],
@@ -127,12 +120,12 @@
     "conditional_scoring": [
       {
         "if_question_id": "q1_current_situation",
-        "if_answer_equals": "I run my own business.",
+        "if_answer_equals": "run_business",
         "ignore_question_ids": ["q2a_prior_experience"]
       },
       {
         "if_question_id": "q1_current_situation",
-        "if_answer_not_equals": "I run my own business.",
+        "if_answer_not_equals": "run_business",
         "ignore_question_ids": ["q2b_business_duration"]
       }
     ]
