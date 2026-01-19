@@ -127,12 +127,12 @@
     "conditional_scoring": [
       {
         "if_question_id": "q1_current_situation",
-        "if_answer_equals": "I run my own business",
+        "if_answer_equals": "I run my own business.",
         "ignore_question_ids": ["q2a_prior_experience"]
       },
       {
         "if_question_id": "q1_current_situation",
-        "if_answer_not_equals": "I run my own business",
+        "if_answer_not_equals": "I run my own business.",
         "ignore_question_ids": ["q2b_business_duration"]
       }
     ]
