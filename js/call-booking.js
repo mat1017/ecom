@@ -20,6 +20,18 @@
     return v;
   }
 
+  function pickLastScalar(v) {
+    if (Array.isArray(v)) {
+      for (let i = v.length - 1; i >= 0; i--) {
+        const c = clean(v[i]);
+        if (c) return c;
+      }
+      return "";
+    }
+    if (typeof v === "object" && v !== null) return "";
+    return clean(v);
+  }
+
   function digitsOnly(v) {
     v = clean(v);
     return v ? v.replace(/\D/g, "") : "";
@@ -49,14 +61,20 @@
     }
   }
 
+  function safeSetLocalJson(key, obj) {
+    try {
+      localStorage.setItem(key, JSON.stringify(obj));
+    } catch {}
+  }
+
   function safeGetLead() {
     const cached = safeGetLocalJson(LEAD_KEY);
     if (!cached || typeof cached !== "object") return null;
     if (!cached.data || typeof cached.data !== "object") return null;
 
-    const name = clean(cached.data.name);
-    const email = clean(cached.data.email);
-    const phone = clean(cached.data.phone);
+    const name = pickLastScalar(cached.data.name);
+    const email = pickLastScalar(cached.data.email);
+    const phone = pickLastScalar(cached.data.phone);
 
     if (!name && !email && !phone) return null;
     return { name, email, phone };
@@ -64,9 +82,34 @@
 
   function safeGetRawQueryObject() {
     const cached = safeGetLocalJson(RAW_KEY);
-    if (!cached || typeof cached !== "object") return null;
-    if (!cached.data || typeof cached.data !== "object") return null;
-    return cached.data;
+    if (!cached || typeof cached !== "object") return {};
+    if (!cached.data || typeof cached.data !== "object") return {};
+    return cached.data || {};
+  }
+
+  function maybeRepairStoredIdentityAndRaw() {
+    const leadWrap = safeGetLocalJson(LEAD_KEY);
+    if (leadWrap && leadWrap.data && typeof leadWrap.data === "object") {
+      const fixed = {
+        ...leadWrap,
+        data: {
+          ...leadWrap.data,
+          name: pickLastScalar(leadWrap.data.name),
+          email: pickLastScalar(leadWrap.data.email),
+          phone: pickLastScalar(leadWrap.data.phone),
+        },
+      };
+      safeSetLocalJson(LEAD_KEY, fixed);
+    }
+
+    const rawWrap = safeGetLocalJson(RAW_KEY);
+    if (rawWrap && rawWrap.data && typeof rawWrap.data === "object") {
+      const fixedData = { ...rawWrap.data };
+      ["name", "email", "phone"].forEach((k) => {
+        if (k in fixedData) fixedData[k] = pickLastScalar(fixedData[k]);
+      });
+      safeSetLocalJson(RAW_KEY, { ...rawWrap, data: fixedData });
+    }
   }
 
   function splitName(full) {
@@ -153,7 +196,7 @@
   function pickUtm(raw) {
     const out = {};
     ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"].forEach((k) => {
-      const v = raw && raw[k] ? clean(raw[k]) : "";
+      const v = pickLastScalar(raw && raw[k] ? raw[k] : "");
       if (v) out[k] = v;
     });
     return out;
@@ -184,17 +227,24 @@
 
   function getPrefillIdentity() {
     const params = qs();
-
     const lead = safeGetLead();
     const raw = safeGetRawQueryObject() || {};
 
-    const urlName = clean(params.get("name"));
-    const urlEmail = clean(params.get("email"));
-    const urlPhone = clean(params.get("a1")) || clean(params.get("phone"));
+    const urlName = pickLastScalar(params.get("name"));
+    const urlEmail = pickLastScalar(params.get("email"));
+    const urlPhone = pickLastScalar(params.get("a1")) || pickLastScalar(params.get("phone"));
 
-    const name = urlName || clean(raw.name) || (lead ? clean(lead.name) : "");
-    const email = urlEmail || clean(raw.email) || (lead ? clean(lead.email) : "");
-    const phone = urlPhone || clean(raw.phone) || (lead ? clean(lead.phone) : "");
+    const leadName = lead ? pickLastScalar(lead.name) : "";
+    const leadEmail = lead ? pickLastScalar(lead.email) : "";
+    const leadPhone = lead ? pickLastScalar(lead.phone) : "";
+
+    const rawName = pickLastScalar(raw.name);
+    const rawEmail = pickLastScalar(raw.email);
+    const rawPhone = pickLastScalar(raw.phone);
+
+    const name = urlName || leadName || rawName;
+    const email = urlEmail || leadEmail || rawEmail;
+    const phone = urlPhone || leadPhone || rawPhone;
 
     const { firstName, lastName } = splitName(name);
 
@@ -302,6 +352,8 @@
   }
 
   onReady(async function () {
+    maybeRepairStoredIdentityAndRaw();
+
     const container = document.getElementById(EMBED_ID);
     if (!container) return;
 
