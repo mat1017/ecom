@@ -3,58 +3,32 @@ $(document).ready(function () {
     return /^[a-z]{2}$/.test(code);
   }
 
+  const cacheKey = "userCountryInfo";
+  const TTL_MS = 86400000;
+
   let countryCodePromise = null;
+  let didRefreshThisPage = false;
 
-  function fetchCountryData() {
-    if (countryCodePromise) return countryCodePromise;
-
-    const cacheKey = "userCountryInfo";
-    const now = Date.now();
-
-    let cached = null;
+  function safeJsonParse(v) {
     try {
-      cached = JSON.parse(localStorage.getItem(cacheKey) || "null");
-    } catch (e) {
-      localStorage.removeItem(cacheKey);
+      return JSON.parse(v);
+    } catch {
+      return null;
     }
+  }
 
-    if (cached && now - cached.timestamp < 86400000 && isValidCountryCode(cached.code)) {
-      populateHiddenFields(cached);
-      countryCodePromise = Promise.resolve(cached.code);
-      return countryCodePromise;
-    }
+  function getCached(now) {
+    const cached = safeJsonParse(localStorage.getItem(cacheKey) || "null");
+    if (!cached) return null;
+    if (!cached.timestamp || now - cached.timestamp > TTL_MS) return null;
+    if (!isValidCountryCode(cached.code)) return null;
+    return cached;
+  }
 
-    const fallbackCountry = "us";
-
-    countryCodePromise = new Promise((resolve) => {
-      const saveToCache = (data) => {
-        localStorage.setItem(cacheKey, JSON.stringify({ ...data, timestamp: now }));
-        populateHiddenFields(data);
-        resolve(data.code);
-      };
-
-      if (typeof geoip2 !== "undefined" && typeof geoip2.city === "function") {
-        geoip2.city(
-          (response) => {
-            const data = {
-              code: response?.country?.iso_code?.toLowerCase?.() || fallbackCountry,
-              country: response?.country?.names?.en || "",
-              city: response?.city?.names?.en || "",
-              region: response?.subdivisions?.[0]?.names?.en || "",
-              ip: response?.traits?.ip_address || "",
-            };
-
-            if (isValidCountryCode(data.code)) saveToCache(data);
-            else resolve(fallbackCountry);
-          },
-          () => resolve(fallbackCountry)
-        );
-      } else {
-        resolve(fallbackCountry);
-      }
-    });
-
-    return countryCodePromise;
+  function saveToCache(data, now) {
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ ...data, timestamp: now }));
+    } catch {}
   }
 
   function populateHiddenFields(data) {
@@ -67,11 +41,70 @@ $(document).ready(function () {
     if (data?.region) $(".region").val(data.region);
 
     const geoParts = [];
-    if (data.city) geoParts.push(data.city);
-    if (data.region) geoParts.push(data.region);
-    if (data.country) geoParts.push(data.country);
+    if (data?.city) geoParts.push(data.city);
+    if (data?.region) geoParts.push(data.region);
+    if (data?.country) geoParts.push(data.country);
 
     if (geoParts.length) $(".ip-geolocation").val(geoParts.join(", "));
+  }
+
+  function refreshFromMaxMind({ now, fallbackCountry, resolve, resolveEarly }) {
+    if (didRefreshThisPage) return;
+    didRefreshThisPage = true;
+
+    if (!(typeof geoip2 !== "undefined" && typeof geoip2.city === "function")) {
+      if (!resolveEarly) resolve(fallbackCountry);
+      return;
+    }
+
+    geoip2.city(
+      (response) => {
+        const data = {
+          code: response?.country?.iso_code?.toLowerCase?.() || fallbackCountry,
+          country: response?.country?.names?.en || "",
+          city: response?.city?.names?.en || "",
+          region: response?.subdivisions?.[0]?.names?.en || "",
+          ip: response?.traits?.ip_address || "",
+        };
+
+        if (isValidCountryCode(data.code)) {
+          saveToCache(data, now);
+          populateHiddenFields(data);
+          if (!resolveEarly) resolve(data.code);
+        } else {
+          const fallbackData = { code: fallbackCountry, country: "", city: "", region: "", ip: "" };
+          saveToCache(fallbackData, now);
+          populateHiddenFields(fallbackData);
+          if (!resolveEarly) resolve(fallbackCountry);
+        }
+      },
+      () => {
+        if (!resolveEarly) resolve(fallbackCountry);
+      }
+    );
+  }
+
+  function fetchCountryData() {
+    if (countryCodePromise) return countryCodePromise;
+
+    const now = Date.now();
+    const fallbackCountry = "us";
+
+    countryCodePromise = new Promise((resolve) => {
+      const cached = getCached(now);
+
+      if (cached) {
+        populateHiddenFields(cached);
+        resolve(cached.code);
+
+        refreshFromMaxMind({ now, fallbackCountry, resolve, resolveEarly: true });
+        return;
+      }
+
+      refreshFromMaxMind({ now, fallbackCountry, resolve, resolveEarly: false });
+    });
+
+    return countryCodePromise;
   }
 
   const phoneInputs = $('input[ms-code-phone-number]');
@@ -81,7 +114,7 @@ $(document).ready(function () {
 
   phoneInputs.each(function () {
     const input = this;
-    const preferredCountries = $(input).attr("ms-code-phone-number").split(",");
+    const preferredCountries = ($(input).attr("ms-code-phone-number") || "us").split(",");
 
     const iti = window.intlTelInput(input, {
       preferredCountries,
@@ -94,34 +127,17 @@ $(document).ready(function () {
       });
 
       function formatPhoneNumber() {
-  if (typeof intlTelInputUtils === "undefined") return;
+        if (typeof intlTelInputUtils === "undefined") return;
 
-  const formattedNational = iti.getNumber(intlTelInputUtils.numberFormat.NATIONAL);
-  input.value = formattedNational;
+        const formattedNational = iti.getNumber(intlTelInputUtils.numberFormat.NATIONAL);
+        input.value = formattedNational;
 
-  const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.E164);
+        const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.E164);
 
-  const $form = $(input).closest("form");
-  const fullInput = $form.find(".full-phone-input");
-  if (fullInput.length) fullInput.val(fullNumber);
-}
-
-input.addEventListener("change", formatPhoneNumber);
-input.addEventListener("keyup", formatPhoneNumber);
-
-const form = $(input).closest("form");
-if (!initializedForms.has(form[0])) {
-  initializedForms.add(form[0]);
-
-  form.on("submit", function () {
-    if (typeof intlTelInputUtils === "undefined") return;
-
-    const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.E164);
-
-    const fullInput = $(this).find(".full-phone-input");
-    if (fullInput.length) fullInput.val(fullNumber);
-  });
-}
+        const $form = $(input).closest("form");
+        const fullInput = $form.find(".full-phone-input");
+        if (fullInput.length) fullInput.val(fullNumber);
+      }
 
       input.addEventListener("change", formatPhoneNumber);
       input.addEventListener("keyup", formatPhoneNumber);
@@ -134,7 +150,6 @@ if (!initializedForms.has(form[0])) {
           if (typeof intlTelInputUtils === "undefined") return;
 
           const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.E164);
-          input.value = fullNumber;
 
           const fullInput = $(this).find(".full-phone-input");
           if (fullInput.length) fullInput.val(fullNumber);
