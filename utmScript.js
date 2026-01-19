@@ -132,7 +132,7 @@
 
     if (Object.keys(fromUrl).length) {
       setCached(merged);
-      saveUtms(fromUrl);
+      if (Object.keys(fromUrl).length) saveUtms(fromUrl);
     }
 
     writeRawQueryFields(merged);
