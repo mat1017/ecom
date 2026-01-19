@@ -1,13 +1,9 @@
 (function () {
   const LEAD_KEY = "ecom_lead_identity";
-  const LEAD_TTL_MS = 86400000;
 
   function setLeadIdentity(data) {
     try {
-      localStorage.setItem(
-        LEAD_KEY,
-        JSON.stringify({ ts: Date.now(), data })
-      );
+      localStorage.setItem(LEAD_KEY, JSON.stringify({ ts: Date.now(), data }));
     } catch {}
   }
 
@@ -24,7 +20,7 @@
 
       f.querySelectorAll("[data-param]").forEach((el) => {
         const k = el.dataset.param;
-        const v = el.value?.trim?.();
+        const v = (el.value || "").trim();
         if (!v) return;
 
         if (k === "fname") fname = v;
@@ -34,12 +30,16 @@
         else p[k] = v;
       });
 
+      const fullPhone = f.querySelector(".full-phone-input")?.value?.trim?.();
+      if (fullPhone) lead.phone = fullPhone;
+
       const name = [fname, lname].filter(Boolean).join(" ");
       if (name) lead.name = name;
 
       setLeadIdentity(lead);
 
-      location.href = url + (Object.keys(p).length ? "?" + new URLSearchParams(p) : "");
+      const qs = new URLSearchParams(p).toString();
+      location.href = url + (qs ? "?" + qs : "");
     });
   }
 
