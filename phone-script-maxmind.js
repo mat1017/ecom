@@ -94,17 +94,34 @@ $(document).ready(function () {
       });
 
       function formatPhoneNumber() {
-        if (typeof intlTelInputUtils === "undefined") return;
+  if (typeof intlTelInputUtils === "undefined") return;
 
-        const formattedNumber = iti.getNumber(intlTelInputUtils.numberFormat.NATIONAL);
-        input.value = formattedNumber;
+  const formattedNational = iti.getNumber(intlTelInputUtils.numberFormat.NATIONAL);
+  input.value = formattedNational;
 
-        const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.E164);
+  const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.E164);
 
-        const $form = $(input).closest("form");
-        const fullInput = $form.find(".full-phone-input");
-        if (fullInput.length) fullInput.val(fullNumber);
-      }
+  const $form = $(input).closest("form");
+  const fullInput = $form.find(".full-phone-input");
+  if (fullInput.length) fullInput.val(fullNumber);
+}
+
+input.addEventListener("change", formatPhoneNumber);
+input.addEventListener("keyup", formatPhoneNumber);
+
+const form = $(input).closest("form");
+if (!initializedForms.has(form[0])) {
+  initializedForms.add(form[0]);
+
+  form.on("submit", function () {
+    if (typeof intlTelInputUtils === "undefined") return;
+
+    const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.E164);
+
+    const fullInput = $(this).find(".full-phone-input");
+    if (fullInput.length) fullInput.val(fullNumber);
+  });
+}
 
       input.addEventListener("change", formatPhoneNumber);
       input.addEventListener("keyup", formatPhoneNumber);
