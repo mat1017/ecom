@@ -1,13 +1,16 @@
 (function () {
   const CONFIG_URL = "https://mat1017.github.io/ecom/config/lead-scoring-config.json";
+
   const LEAD_KEY = "ecom_lead_identity";
   const RAW_KEY = "ecom_raw_query";
 
-  const EMBED_ID = "calendly-embed";
+  const DEFAULT_BASE_URL = "https://calendly.com/ecomcapital/strategy-call-c1";
+
+  const HEADLINE_SELECTOR = '[data-call="headline"], [data-call-headline], .call-booking-headline';
+  const EMBED_SELECTOR = "#calendly-embed, [data-calendly-embed], .calendly-embed, [data=\"calendly-embed\"]";
+
   const FALLBACK_ID = "calendly-fallback";
   const FALLBACK_LINK_ID = "calendly-fallback-link";
-
-  const DEFAULT_BASE_URL = "https://calendly.com/ecomcapital/strategy-call-c1";
 
   function clean(v) {
     if (v === undefined || v === null) return "";
@@ -22,7 +25,11 @@
   }
 
   function qs() {
-    return new URLSearchParams(window.location.search || "");
+    try {
+      return new URLSearchParams(window.location.search || "");
+    } catch {
+      return new URLSearchParams();
+    }
   }
 
   function safeJsonParse(v) {
@@ -55,9 +62,18 @@
 
   function safeGetRawQueryObject() {
     const cached = safeGetLocalJson(RAW_KEY);
-    if (!cached || typeof cached !== "object") return null;
-    if (!cached.data || typeof cached.data !== "object") return null;
-    return cached.data;
+    if (!cached || typeof cached !== "object") return {};
+    if (!cached.data || typeof cached.data !== "object") return {};
+    return cached.data || {};
+  }
+
+  function pickUtm(raw) {
+    const out = {};
+    ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"].forEach((k) => {
+      const v = raw && raw[k] ? clean(raw[k]) : "";
+      if (v) out[k] = v;
+    });
+    return out;
   }
 
   function splitName(full) {
@@ -83,49 +99,41 @@
     })();
   }
 
-  function showFallback(fallbackUrl) {
-    const embed = document.getElementById(EMBED_ID);
+  function setHeadline(text) {
+    const el = document.querySelector(HEADLINE_SELECTOR);
+    if (!el) return;
+    el.textContent = clean(text);
+  }
+
+  function showFallback(fallbackUrl, embedEl) {
     const fbWrap = document.getElementById(FALLBACK_ID);
     const fbLink = document.getElementById(FALLBACK_LINK_ID);
 
     if (fbLink) fbLink.href = fallbackUrl;
 
-    if (embed) embed.style.display = "none";
+    if (embedEl) embedEl.style.display = "none";
     if (fbWrap) fbWrap.style.display = "block";
   }
 
-  function hideFallback() {
-    const embed = document.getElementById(EMBED_ID);
+  function hideFallback(embedEl) {
     const fbWrap = document.getElementById(FALLBACK_ID);
-
-    if (embed) embed.style.display = "block";
+    if (embedEl) embedEl.style.display = "block";
     if (fbWrap) fbWrap.style.display = "none";
   }
 
   async function fetchConfig() {
     const res = await fetch(CONFIG_URL, { cache: "no-store" });
-    if (!res.ok) throw new Error("Failed to load scoring config");
+    if (!res.ok) throw new Error("config_fetch_failed");
     return await res.json();
   }
 
   function getRoutingFromConfig(config, tier) {
     const t = Number(tier);
-
     if (t === 5) return config?.routing?.tier_5 || null;
     if (t === 4) return config?.routing?.tier_4 || null;
     if (t === 3) return config?.routing?.tier_3 || null;
     if (t === 2) return config?.routing?.tier_2 || null;
     return config?.routing?.tier_1 || null;
-  }
-
-  function setHeadline(text) {
-    const v = clean(text);
-    if (!v) return;
-
-    const el = document.querySelector('[data-call="headline"]');
-    if (!el) return;
-
-    el.textContent = v;
   }
 
   function buildCalendlyDisplayUrl(baseUrl) {
@@ -147,7 +155,7 @@
       hide_gdpr_banner: "1",
     });
 
-    const nm = clean((firstName + " " + lastName).trim());
+    const nm = clean((clean(firstName) + " " + clean(lastName)).trim());
     if (nm) p.set("name", nm);
     if (clean(email)) p.set("email", clean(email));
     if (clean(phoneDigits)) p.set("a1", clean(phoneDigits));
@@ -155,9 +163,8 @@
     return u + (u.includes("?") ? "&" : "?") + p.toString();
   }
 
-  function getPrefillIdentity() {
+  function getIdentity() {
     const params = qs();
-
     const lead = safeGetLead();
     const raw = safeGetRawQueryObject() || {};
 
@@ -173,6 +180,7 @@
     const { firstName, lastName } = splitName(name);
 
     return {
+      name: clean(name),
       firstName,
       lastName,
       email: clean(email),
@@ -180,7 +188,7 @@
     };
   }
 
-  function initCalendly(calendlyUrl, identity, container, onLoaded) {
+  function initCalendlyInline(calendlyUrl, embedEl, identity, utm, onLoaded) {
     const fallbackTimer = setTimeout(function () {
       onLoaded(false);
     }, 4500);
@@ -209,26 +217,37 @@
       6000,
       25,
       function () {
-        window.Calendly.initInlineWidget({
+        const opts = {
           url: calendlyUrl,
-          parentElement: container,
+          parentElement: embedEl,
           prefill: {
             firstName: identity.firstName,
             lastName: identity.lastName,
             email: identity.email,
             customAnswers: { a1: identity.phoneDigits },
           },
-        });
+        };
+
+        if (utm && Object.keys(utm).length) {
+          opts.utm = {};
+          if (utm.utm_source) opts.utm.utmSource = utm.utm_source;
+          if (utm.utm_medium) opts.utm.utmMedium = utm.utm_medium;
+          if (utm.utm_campaign) opts.utm.utmCampaign = utm.utm_campaign;
+          if (utm.utm_term) opts.utm.utmTerm = utm.utm_term;
+          if (utm.utm_content) opts.utm.utmContent = utm.utm_content;
+        }
+
+        window.Calendly.initInlineWidget(opts);
       }
     );
   }
 
   onReady(async function () {
-    const container = document.getElementById(EMBED_ID);
-    if (!container) return;
+    const embedEl = document.querySelector(EMBED_SELECTOR);
+    if (!embedEl) return;
 
-    if (container.getAttribute("data-calendly-mounted") === "1") return;
-    container.setAttribute("data-calendly-mounted", "1");
+    if (embedEl.getAttribute("data-calendly-mounted") === "1") return;
+    embedEl.setAttribute("data-calendly-mounted", "1");
 
     const params = qs();
     const tierParam = clean(params.get("tier"));
@@ -242,31 +261,35 @@
       const routing = getRoutingFromConfig(config, tierParam);
 
       if (routing && routing.type === "redirect") {
-        const url = clean(routing.url) || "/fast-starter-program";
-        window.location.href = url;
+        window.location.href = clean(routing.url) || "/fast-starter-program";
         return;
       }
 
       baseUrl = clean(routing?.url) || baseUrl;
-      headline = clean(routing?.headline) || "";
+      headline = clean(routing?.headline);
+    } catch {}
 
-      if (headline) setHeadline(headline);
-    } catch {
-    }
+    setHeadline(headline);
 
-    const identity = getPrefillIdentity();
+    const raw = safeGetRawQueryObject();
+    const utm = pickUtm(raw);
+
+    const identity = getIdentity();
 
     const calendlyUrl = buildCalendlyDisplayUrl(baseUrl);
     const fallbackUrl = buildFallbackUrl(baseUrl, identity.firstName, identity.lastName, identity.email, identity.phoneDigits);
 
     if (forceFallback) {
-      showFallback(fallbackUrl);
+      showFallback(fallbackUrl, embedEl);
       return;
     }
 
-    initCalendly(calendlyUrl, identity, container, function (loaded) {
-      if (loaded) hideFallback();
-      else showFallback(fallbackUrl);
+    hideFallback(embedEl);
+    embedEl.innerHTML = "";
+
+    initCalendlyInline(calendlyUrl, embedEl, identity, utm, function (loaded) {
+      if (loaded) hideFallback(embedEl);
+      else showFallback(fallbackUrl, embedEl);
     });
   });
 })();
