@@ -130,8 +130,7 @@ $(document).ready(function () {
         );
         input.value = formattedNumber;
 
-        const countryDialCode = iti.getSelectedCountryData().dialCode;
-        const fullNumber = "+" + countryDialCode + input.value.replace(/^0/, "");
+        const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.INTERNATIONAL);
 
         const $form = $(input).closest("form");
 
