@@ -211,3 +211,140 @@ document.addEventListener("DOMContentLoaded", () => {
     writeField("phone", lead.phone);
   }
 });
+
+(function () {
+  const CONFIG_URL = "https://mat1017.github.io/ecom/config/lead-scoring-config.json";
+  const CALL_BOOKING_PATH = "/call-booking";
+
+  function setHidden(key, value) {
+    if (value === undefined || value === null) return;
+    const v = String(value);
+    document
+      .querySelectorAll(`[data-field="${key}"], input[name="${key}"]`)
+      .forEach((el) => {
+        el.value = v;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+  }
+
+  async function fetchConfig() {
+    const res = await fetch(CONFIG_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error("Failed to load scoring config");
+    return await res.json();
+  }
+
+  function getFormValueByLabel(formData, label) {
+    if (!label) return null;
+    return formData.get(label);
+  }
+
+  function computeScore(config, formData) {
+    const questions = Array.isArray(config?.questions) ? config.questions : [];
+    const rules = config?.rules?.conditional_scoring || [];
+
+    const answersByQid = {};
+    questions.forEach((q) => {
+      const ans = getFormValueByLabel(formData, q.webflow_label);
+      answersByQid[q.id] = ans === null ? null : String(ans);
+    });
+
+    const ignore = new Set();
+    rules.forEach((r) => {
+      const actual = answersByQid[r.if_question_id];
+      if (actual === null || actual === undefined) return;
+
+      const matchEq = r.if_answer_equals !== undefined && actual === String(r.if_answer_equals);
+      const matchNe = r.if_answer_not_equals !== undefined && actual !== String(r.if_answer_not_equals);
+
+      if (matchEq || matchNe) {
+        (r.ignore_question_ids || []).forEach((qid) => ignore.add(qid));
+      }
+    });
+
+    let score = 0;
+
+    questions.forEach((q) => {
+      if (ignore.has(q.id)) return;
+      if (q.enrichment_only) return;
+
+      const ans = answersByQid[q.id];
+      if (!ans) return;
+
+      const pts = q.answers ? q.answers[ans] : undefined;
+      if (typeof pts === "number") score += pts;
+    });
+
+    return score;
+  }
+
+  function scoreToTier(config, score) {
+    const t = config?.thresholds || {};
+    if (typeof t.tier_5_min === "number" && score >= t.tier_5_min) return 5;
+    if (typeof t.tier_4_min === "number" && score >= t.tier_4_min) return 4;
+    if (typeof t.tier_3_min === "number" && score >= t.tier_3_min) return 3;
+    if (typeof t.tier_2_min === "number" && score >= t.tier_2_min) return 2;
+    return 1;
+  }
+
+  function tierToRoute(config, tier) {
+    const map = config?.outputs?.lead_tier_values || {};
+    if (tier === 5) return map.tier_5 || "AE";
+    if (tier === 4) return map.tier_4 || "AE";
+    if (tier === 3) return map.tier_3 || "AE";
+    if (tier === 2) return map.tier_2 || "SDR";
+    return map.tier_1 || "DOWNSELL";
+  }
+
+  function buildRedirect(config, tier, route) {
+    if (tier === 1) {
+      return (config?.routing?.tier_1?.url || "/fast-starter-program");
+    }
+
+    const qs = new URLSearchParams();
+    qs.set(config?.outputs?.lead_tier_param || "lead-tier", route);
+    qs.set("tier", String(tier));
+
+    return `${CALL_BOOKING_PATH}?${qs.toString()}`;
+  }
+
+  function bind() {
+    const root = document.querySelector('[data-ecom-form="application"]');
+    if (!root) return;
+
+    const form = root.querySelector("form");
+    if (!form) return;
+
+    if (form.dataset.ecomScoringBound === "1") return;
+    form.dataset.ecomScoringBound = "1";
+
+    form.addEventListener(
+      "submit",
+      async (e) => {
+        try {
+          const config = await fetchConfig();
+          const fd = new FormData(form);
+
+          const score = computeScore(config, fd);
+          const tier = scoreToTier(config, score);
+          const route = tierToRoute(config, tier);
+
+          setHidden("lead_score", score);
+          setHidden("lead_tier", tier);
+          setHidden("lead_route", route);
+          setHidden("scoring_version", config?.version || "v1");
+
+          const redirectUrl = buildRedirect(config, tier, route);
+
+          setTimeout(() => {
+            window.location.href = redirectUrl;
+          }, 350);
+        } catch (err) {
+        }
+      },
+      true
+    );
+  }
+
+  document.addEventListener("DOMContentLoaded", bind);
+})();
