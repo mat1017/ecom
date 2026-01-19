@@ -18,7 +18,6 @@ $(document).ready(function () {
       localStorage.removeItem(cacheKey);
     }
 
-    // Use cache if valid (24h)
     if (cached && now - cached.timestamp < 86400000 && isValidCountryCode(cached.code)) {
       populateHiddenFields(cached);
       countryCodePromise = Promise.resolve(cached.code);
@@ -29,15 +28,11 @@ $(document).ready(function () {
 
     countryCodePromise = new Promise((resolve) => {
       const saveToCache = (data) => {
-        localStorage.setItem(
-          cacheKey,
-          JSON.stringify({ ...data, timestamp: now })
-        );
+        localStorage.setItem(cacheKey, JSON.stringify({ ...data, timestamp: now }));
         populateHiddenFields(data);
         resolve(data.code);
       };
 
-      // MaxMind GeoIP2 City API (correct source for city + region)
       if (typeof geoip2 !== "undefined" && typeof geoip2.city === "function") {
         geoip2.city(
           (response) => {
@@ -49,11 +44,8 @@ $(document).ready(function () {
               ip: response?.traits?.ip_address || "",
             };
 
-            if (isValidCountryCode(data.code)) {
-              saveToCache(data);
-            } else {
-              resolve(fallbackCountry);
-            }
+            if (isValidCountryCode(data.code)) saveToCache(data);
+            else resolve(fallbackCountry);
           },
           () => resolve(fallbackCountry)
         );
@@ -66,44 +58,24 @@ $(document).ready(function () {
   }
 
   function populateHiddenFields(data) {
-    // UTC datetime
-    const utcDateTime = new Date()
-      .toISOString()
-      .replace("T", " ")
-      .replace("Z", " UTC");
-
+    const utcDateTime = new Date().toISOString().replace("T", " ").replace("Z", " UTC");
     $(".date-and-time").val(utcDateTime);
 
-    if (data?.ip) {
-      $(".ip-address").val(data.ip);
-    }
+    if (data?.ip) $(".ip-address").val(data.ip);
+    if (data?.country) $(".user_country_name").val(data.country);
+    if (data?.city) $(".city").val(data.city);
+    if (data?.region) $(".region").val(data.region);
 
-    // Country, city, region (class-based, NOT name-based)
-    if (data?.country) {
-      $(".user_country_name").val(data.country);
-    }
-
-    if (data?.city) {
-      $(".city").val(data.city);
-    }
-
-    if (data?.region) {
-      $(".region").val(data.region);
-    }
-
-    // Combined geolocation string
     const geoParts = [];
     if (data.city) geoParts.push(data.city);
     if (data.region) geoParts.push(data.region);
     if (data.country) geoParts.push(data.country);
 
-    if (geoParts.length) {
-      $(".ip-geolocation").val(geoParts.join(", "));
-    }
+    if (geoParts.length) $(".ip-geolocation").val(geoParts.join(", "));
   }
 
   const phoneInputs = $('input[ms-code-phone-number]');
-  fetchCountryData(); // trigger early, cached
+  fetchCountryData();
 
   const initializedForms = new Set();
 
@@ -113,8 +85,7 @@ $(document).ready(function () {
 
     const iti = window.intlTelInput(input, {
       preferredCountries,
-      utilsScript:
-        "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
+      utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
     });
 
     iti.promise.then(() => {
@@ -125,24 +96,14 @@ $(document).ready(function () {
       function formatPhoneNumber() {
         if (typeof intlTelInputUtils === "undefined") return;
 
-        const formattedNumber = iti.getNumber(
-          intlTelInputUtils.numberFormat.NATIONAL
-        );
+        const formattedNumber = iti.getNumber(intlTelInputUtils.numberFormat.NATIONAL);
         input.value = formattedNumber;
 
         const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.INTERNATIONAL);
 
         const $form = $(input).closest("form");
-
         const fullInput = $form.find(".full-phone-input");
-        if (fullInput.length) {
-          fullInput.val(fullNumber);
-        }
-
-        const hubspotField = $form.find("input[name='phone'].hs-input");
-        if (hubspotField.length) {
-          hubspotField.val(fullNumber).trigger("input").trigger("change");
-        }
+        if (fullInput.length) fullInput.val(fullNumber);
       }
 
       input.addEventListener("change", formatPhoneNumber);
@@ -153,15 +114,14 @@ $(document).ready(function () {
         initializedForms.add(form[0]);
 
         form.on("submit", function () {
-  if (typeof intlTelInputUtils === "undefined") return;
+          if (typeof intlTelInputUtils === "undefined") return;
 
-  const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.INTERNATIONAL);
+          const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.INTERNATIONAL);
+          input.value = fullNumber;
 
-  input.value = fullNumber;
-
-  const fullInput = $(this).find(".full-phone-input");
-  if (fullInput.length) fullInput.val(fullNumber);
-});
+          const fullInput = $(this).find(".full-phone-input");
+          if (fullInput.length) fullInput.val(fullNumber);
+        });
       }
     });
   });
