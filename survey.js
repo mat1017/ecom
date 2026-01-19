@@ -223,7 +223,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 (function () {
   const CONFIG_URL = "https://mat1017.github.io/ecom/config/lead-scoring-config.json";
-  const CALL_BOOKING_PATH = "/call-booking";
+  const CALL_BOOKING_PATH = "/schedule-your-call";
 
   let configCache = null;
   let configError = null;
