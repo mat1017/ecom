@@ -99,7 +99,7 @@ $(document).ready(function () {
         const formattedNumber = iti.getNumber(intlTelInputUtils.numberFormat.NATIONAL);
         input.value = formattedNumber;
 
-        const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.INTERNATIONAL);
+        const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.E164);
 
         const $form = $(input).closest("form");
         const fullInput = $form.find(".full-phone-input");
@@ -116,7 +116,7 @@ $(document).ready(function () {
         form.on("submit", function () {
           if (typeof intlTelInputUtils === "undefined") return;
 
-          const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.INTERNATIONAL);
+          const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.E164);
           input.value = fullNumber;
 
           const fullInput = $(this).find(".full-phone-input");
