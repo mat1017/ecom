@@ -1,0 +1,140 @@
+{
+  "version": "v1.0.0",
+  "updated_at": "2026-01-19",
+  "ttl_ms": 86400000,
+  "outputs": {
+    "lead_tier_param": "lead-tier",
+    "lead_tier_values": {
+      "tier_5": "AE",
+      "tier_4": "AE",
+      "tier_3": "AE",
+      "tier_2": "SDR",
+      "tier_1": "DOWNSELL"
+    }
+  },
+  "thresholds": {
+    "tier_5_min": 67,
+    "tier_4_min": 54,
+    "tier_3_min": 43,
+    "tier_2_min": 28,
+    "tier_1_min": 0
+  },
+  "routing": {
+    "tier_5": {
+      "type": "calendly",
+      "headline": "Schedule Your Strategy Session",
+      "url": "https://calendly.com/ecomcapital/ecom-capital-strategy-call-5"
+    },
+    "tier_4": {
+      "type": "calendly",
+      "headline": "Schedule Your Strategy Session",
+      "url": "https://calendly.com/ecomcapital/strategy-call-c1"
+    },
+    "tier_3": {
+      "type": "calendly",
+      "headline": "Schedule Your Strategy Session",
+      "url": "https://calendly.com/ecomcapital/strategy-call-c1"
+    },
+    "tier_2": {
+      "type": "calendly",
+      "headline": "Schedule Your Intro Call",
+      "url": "https://calendly.com/ecomcapital/intro-call-c1"
+    },
+    "tier_1": {
+      "type": "redirect",
+      "headline": "",
+      "url": "/fast-starter-program"
+    }
+  },
+  "questions": [
+    {
+      "id": "q1_current_situation",
+      "enrichment_only": false,
+      "webflow_label": "So we can see where you’re starting from, what is your current situation?",
+      "answers": {
+        "I run my own business": 20,
+        "I have a job": 8,
+        "Something else": 5,
+        "I am currently unemployed": -12
+      }
+    },
+    {
+      "id": "q2a_prior_experience",
+      "enrichment_only": false,
+      "webflow_label": "Have you ever run a business before?",
+      "answers": {
+        "No, this would be my first": 2,
+        "I’ve held a senior role (manager/director/leadership)": 7,
+        "Yes, I’ve run a business before (not eCommerce)": 15,
+        "Yes, I’ve run an eCommerce business before": 20
+      }
+    },
+    {
+      "id": "q2b_business_duration",
+      "enrichment_only": true,
+      "webflow_label": "How long have you been running your own business?",
+      "answers": {}
+    },
+    {
+      "id": "q3_support_needed",
+      "enrichment_only": false,
+      "webflow_label": "What kind of support are you looking for?",
+      "answers": {
+        "I want clear step-by-step guidance": 15,
+        "I need help staying accountable": 7,
+        "I’m looking for hands-on done-for-you support": 5,
+        "I’m just curious about what’s involved": -5
+      }
+    },
+    {
+      "id": "q4_funding_readiness",
+      "enrichment_only": false,
+      "webflow_label": "When thinking about funding your business growth, which of the following best describes you?",
+      "answers": {
+        "I’ve got funds set aside specifically for this": 12,
+        "I could access funds quickly if needed": 12,
+        "I’d need a flexible payment option to start": 5,
+        "I’d want to plan things out before committing": 8,
+        "I wouldn’t be able to invest at this time": 0
+      }
+    },
+    {
+      "id": "q5_investment_comfort",
+      "enrichment_only": false,
+      "webflow_label": "If you found the right strategy and mentorship, what level of investment would feel comfortable for you to start with?",
+      "answers": {
+        "0-5K": -7,
+        "5-10K": 5,
+        "10-20K": 12,
+        "20-30K": 15,
+        "Over 20K": 20
+      }
+    },
+    {
+      "id": "q6_start_timeline",
+      "enrichment_only": false,
+      "webflow_label": "How soon do you plan on getting started?",
+      "answers": {
+        "I’m just researching for now": -10,
+        "Immediately": 15,
+        "In 1-2 Weeks": 8,
+        "In 1 Month": 4,
+        "In 3+ Months": 2
+      }
+    }
+  ],
+  "rules": {
+    "conditional_scoring": [
+      {
+        "if_question_id": "q1_current_situation",
+        "if_answer_equals": "I run my own business",
+        "ignore_question_ids": ["q2a_prior_experience"]
+      },
+      {
+        "if_question_id": "q1_current_situation",
+        "if_answer_not_equals": "I run my own business",
+        "ignore_question_ids": ["q2b_business_duration"]
+      }
+    ]
+  }
+}
