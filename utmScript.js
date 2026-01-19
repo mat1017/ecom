@@ -1,68 +1,22 @@
 (function () {
-  function getParameterByName(name) {
-    const m = location.search.match(RegExp("[?&]" + name + "=([^&]*)"));
-    return m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : null;
-  }
+  const CACHE_KEY = "ecom_raw_query";
+  const TTL_MS = 86400000;
 
-  function saveUtmsToStorage() {
-    const expires = new Date(Date.now() + 86400000).toUTCString();
-    ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"].forEach((k) => {
-      const v = getParameterByName(k);
-      if (!v) return;
-
-      try {
-        document.cookie = `${k}=${encodeURIComponent(v)}; path=/; expires=${expires}`;
-      } catch {}
-
-      try {
-        sessionStorage.setItem(k, v);
-      } catch {}
-    });
-  }
-
-  function getStoredValue(name) {
-    const m = document.cookie.match(RegExp("(^| )" + name + "=([^;]+)"));
-    if (m) return decodeURIComponent(m[2]);
-
-    try {
-      return sessionStorage.getItem(name);
-    } catch {
-      return null;
-    }
-  }
-
-  function populateUtmHiddenFields() {
-    ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"].forEach((k) => {
-      const v = getParameterByName(k) || getStoredValue(k);
-      if (!v) return;
-
-      document.querySelectorAll(`input[name="${k}"]`).forEach((el) => {
-        el.value = v;
-      });
-    });
-  }
-
-  const RAW_CACHE_KEY = "ecom_raw_query";
-  const RAW_TTL_MS = 86400000;
+  const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"];
 
   function safeJsonParse(v) {
-    try {
-      return JSON.parse(v);
-    } catch {
-      return null;
-    }
+    try { return JSON.parse(v); } catch { return null; }
   }
 
-  function getRawCached() {
-    const cached = safeJsonParse(localStorage.getItem(RAW_CACHE_KEY) || "null");
-    if (!cached) return null;
-    if (!cached.ts || Date.now() - cached.ts > RAW_TTL_MS) return null;
-    return cached.data || null;
+  function getCached() {
+    const cached = safeJsonParse(localStorage.getItem(CACHE_KEY) || "null");
+    if (!cached || !cached.ts || Date.now() - cached.ts > TTL_MS) return {};
+    return cached.data && typeof cached.data === "object" ? cached.data : {};
   }
 
-  function setRawCached(data) {
+  function setCached(data) {
     try {
-      localStorage.setItem(RAW_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
     } catch {}
   }
 
@@ -77,34 +31,89 @@
     return obj;
   }
 
-  function writeRawQueryFields() {
-    const fromUrl = buildParamsObject();
-    const hasUrlParams = Object.keys(fromUrl).length > 0;
+  function mergeObjects(a, b) {
+    const out = { ...(a || {}) };
+    Object.keys(b || {}).forEach((k) => {
+      const bv = b[k];
+      const av = out[k];
 
-    if (hasUrlParams) setRawCached(fromUrl);
-
-    const data = hasUrlParams ? fromUrl : getRawCached() || {};
-    const json = JSON.stringify(data);
-
-    document
-      .querySelectorAll('input[name="raw_query"], input[data-field="raw_query"], input.raw-query')
-      .forEach((el) => {
-        el.value = json;
-      });
+      if (av === undefined) out[k] = bv;
+      else if (Array.isArray(av)) out[k] = av.concat(bv);
+      else if (Array.isArray(bv)) out[k] = [av].concat(bv);
+      else if (av !== bv) out[k] = [av, bv];
+    });
+    return out;
   }
 
-  function attachSubmitListeners() {
-    document.querySelectorAll("form").forEach((form) => {
-      if (form.dataset.ecomRawQueryBound === "1") return;
-      form.dataset.ecomRawQueryBound = "1";
-      form.addEventListener("submit", writeRawQueryFields);
+  function setCookie(name, value, ttlMs) {
+    try {
+      const expires = new Date(Date.now() + ttlMs).toUTCString();
+      document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; path=/; expires=${expires}`;
+    } catch {}
+  }
+
+  function getCookie(name) {
+    try {
+      const m = document.cookie.match(new RegExp("(^| )" + name.replace(/[-[\]/{}()*+?.\\^$|]/g, "\\$&") + "=([^;]+)"));
+      return m ? decodeURIComponent(m[2]) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveUtms(urlObj) {
+    UTM_KEYS.forEach((k) => {
+      const v = urlObj[k];
+      if (!v) return;
+      try { sessionStorage.setItem(k, v); } catch {}
+      setCookie(k, v, TTL_MS);
     });
   }
 
-  document.addEventListener("DOMContentLoaded", function () {
-    saveUtmsToStorage();
-    populateUtmHiddenFields();
-    writeRawQueryFields();
-    attachSubmitListeners();
+  function getStoredUtm(k) {
+    try {
+      return (sessionStorage.getItem(k) || getCookie(k) || "").trim() || null;
+    } catch {
+      return (getCookie(k) || "").trim() || null;
+    }
+  }
+
+  function populateUtmFields() {
+    UTM_KEYS.forEach((k) => {
+      const v = getStoredUtm(k);
+      if (!v) return;
+      document.querySelectorAll(`input[name="${k}"]`).forEach((el) => { el.value = v; });
+    });
+  }
+
+  function writeRawQueryFields(dataObj) {
+    const json = JSON.stringify(dataObj || {});
+    document
+      .querySelectorAll('input[name="raw_query"], input[data-field="raw_query"], input.raw-query')
+      .forEach((el) => { el.value = json; });
+  }
+
+  function run() {
+    const fromUrl = buildParamsObject();
+    const cached = getCached();
+
+    const merged = mergeObjects(cached, fromUrl);
+
+    if (Object.keys(fromUrl).length) {
+      setCached(merged);
+      saveUtms(fromUrl);
+    }
+
+    writeRawQueryFields(merged);
+    populateUtmFields();
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    run();
+    document.querySelectorAll("form").forEach((form) => {
+  if (form.dataset.ecomRawQueryBound === "1") return;
+  form.dataset.ecomRawQueryBound = "1";
+  form.addEventListener("submit", run);
+});
   });
 })();
