@@ -120,19 +120,17 @@
   }
 
   function isApplicationContext(formEl) {
-    const root = formEl.closest('[data-ecom-form="application"]');
-    return !!root;
+    return !!formEl.closest('[data-ecom-form="application"]');
   }
 
   function run() {
     const fromUrl = buildParamsObject();
     const cached = getCached();
-
     const merged = mergeObjects(cached, fromUrl);
 
     if (Object.keys(fromUrl).length) {
       setCached(merged);
-      if (Object.keys(fromUrl).length) saveUtms(fromUrl);
+      saveUtms(fromUrl);
     }
 
     writeRawQueryFields(merged);
@@ -147,10 +145,8 @@
     const lead = getLeadIdentity();
     if (lead) merged = mergeObjects(merged, lead);
 
-    if (Object.keys(fromUrl).length) {
-      setCached(merged);
-      saveUtms(fromUrl);
-    }
+    setCached(merged);
+    if (Object.keys(fromUrl).length) saveUtms(fromUrl);
 
     writeRawQueryFields(merged);
     populateUtmFields();
@@ -163,10 +159,14 @@
       if (form.dataset.ecomRawQueryBound === "1") return;
       form.dataset.ecomRawQueryBound = "1";
 
-      form.addEventListener("submit", () => {
-        if (isApplicationContext(form)) runForApplicationSubmit(form);
-        else run();
-      }, true);
+      form.addEventListener(
+        "submit",
+        () => {
+          if (isApplicationContext(form)) runForApplicationSubmit(form);
+          else run();
+        },
+        true
+      );
     });
   });
 })();
