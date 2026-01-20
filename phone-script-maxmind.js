@@ -96,7 +96,6 @@ $(document).ready(function () {
       if (cached) {
         populateHiddenFields(cached);
         resolve(cached.code);
-
         refreshFromMaxMind({ now, fallbackCountry, resolve, resolveEarly: true });
         return;
       }
@@ -119,6 +118,8 @@ $(document).ready(function () {
     const iti = window.intlTelInput(input, {
       preferredCountries,
       utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js",
+      nationalMode: false,
+      separateDialCode: false
     });
 
     iti.promise.then(() => {
@@ -126,7 +127,26 @@ $(document).ready(function () {
         if (countryCode) iti.setCountry(countryCode);
       });
 
+      function syncCountryFromPlusNumber() {
+        if (typeof intlTelInputUtils === "undefined") return;
+
+        const val = input.value || "";
+        if (!val.startsWith("+")) return;
+
+        try {
+          const parsed = intlTelInputUtils.parseNumber(val);
+          if (!parsed || !parsed.countryCode) return;
+
+          const current = iti.getSelectedCountryData();
+          if (!current || current.iso2 !== parsed.countryCode) {
+            iti.setCountry(parsed.countryCode);
+          }
+        } catch {}
+      }
+
       function formatPhoneNumber() {
+        syncCountryFromPlusNumber();
+
         if (typeof intlTelInputUtils === "undefined") return;
 
         const formattedNational = iti.getNumber(intlTelInputUtils.numberFormat.NATIONAL);
@@ -139,18 +159,20 @@ $(document).ready(function () {
         if (fullInput.length) fullInput.val(fullNumber);
       }
 
+      input.addEventListener("input", formatPhoneNumber);
+      input.addEventListener("blur", formatPhoneNumber);
       input.addEventListener("change", formatPhoneNumber);
-      input.addEventListener("keyup", formatPhoneNumber);
 
       const form = $(input).closest("form");
       if (!initializedForms.has(form[0])) {
         initializedForms.add(form[0]);
 
         form.on("submit", function () {
+          syncCountryFromPlusNumber();
+
           if (typeof intlTelInputUtils === "undefined") return;
 
           const fullNumber = iti.getNumber(intlTelInputUtils.numberFormat.E164);
-
           const fullInput = $(this).find(".full-phone-input");
           if (fullInput.length) fullInput.val(fullNumber);
         });
